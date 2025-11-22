@@ -134,15 +134,9 @@ npm run lint     # 代码检查
 
 ## License
 
-MIT - 随便用，出事儿不负责 :)
-
-## 作者
-- GitHub: [@JackLFH](https://github.com/JackLFH)
-- Email: 1816524875@qq.com
+MIT
 
 ## 致谢
 
 - 灵感来自 [@Vulpecula-Studio](https://github.com/Vulpecula-Studio) 的项目
-- 感谢所有提建议的朋友
-
 
