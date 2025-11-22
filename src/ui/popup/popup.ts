@@ -130,12 +130,14 @@ const updateNextResetTime = (
   resetTimes?: number,
   resetType?: 'first' | 'second' | null,
 ): void => {
+  // 优先检查：如果今日重置次数已用完，显示 "No resets left"
+  if (resetTimes === 0) {
+    nextResetTime.textContent = 'No resets left';
+    return;
+  }
+
   if (!timestamp) {
-    if (resetTimes === 0) {
-      nextResetTime.textContent = 'No resets left';
-    } else {
-      nextResetTime.textContent = '--';
-    }
+    nextResetTime.textContent = '--';
     return;
   }
 
@@ -154,6 +156,13 @@ const updateResetButton = (
   nextAvailableTime?: number | null,
   resetTimes?: number,
 ): void => {
+  // 优先检查：如果今日重置次数已用完，显示 "No resets left"
+  if (resetTimes === 0) {
+    resetBtn.disabled = true;
+    btnContent.textContent = 'No resets left';
+    return;
+  }
+
   if (isOnCooldown && nextAvailableTime) {
     // 冷却中：禁用按钮并显示倒计时
     resetBtn.disabled = true;
@@ -173,10 +182,6 @@ const updateResetButton = (
     });
 
     btnContent.textContent = `${hours}h ${minutes}m (${timeStr})`;
-  } else if (resetTimes === 0) {
-    // 今日重置次数已用完
-    resetBtn.disabled = true;
-    btnContent.textContent = 'No resets left';
   } else {
     // 正常状态：启用按钮
     resetBtn.disabled = false;
