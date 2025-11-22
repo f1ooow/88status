@@ -1,6 +1,6 @@
 # 88code 自动重置插件
 
-一个帮你自动重置 88code 积分的 Chrome 插件，省得每天手动操作。
+一个帮你自动重置 88code 积分的 Chrome 插件，省得每天手动操作。这个文档是claude乱写的，哪对哪错我也不知道。
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![Chrome](https://img.shields.io/badge/Chrome-120+-green.svg)](https://www.google.com/chrome/)
