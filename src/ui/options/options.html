@@ -3,245 +3,106 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>88code 自动重置 - 设置</title>
+  <title>88code Settings</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <!-- 顶部导航 -->
-  <nav class="top-nav">
-    <div class="logo">
-      <div class="logo-icon">88</div>
-      <div class="logo-text">
-        <span class="logo-main">CODE</span>
-        <span class="logo-sub">RESET STUDIO</span>
-      </div>
-    </div>
-    <button class="back-to-hero" id="backToHeroBtn" style="display: none;">
-      <span>← 返回选择</span>
-    </button>
-    <div class="version-badge">
-      <span>v1.2.4</span>
-    </div>
-  </nav>
+  <div class="container">
+    <!-- 头部 -->
+    <header class="header">
+      <h1>88code Settings</h1>
+    </header>
 
-  <!-- Hero Section - 卡片式导航 -->
-  <section class="hero">
-    <div class="hero-cards">
-      <div class="card" id="hero-card-1" data-tab="api">
-        <div class="card-wrapper">
-          <div class="flip-card-inner">
-            <div class="flip-card-front">
-              <div class="card-title">
-                <span>API</span>
-                <span>01</span>
-              </div>
-              <div class="card-emoji">🔑</div>
-              <div class="card-title">
-                <span>01</span>
-                <span>配置</span>
-              </div>
-            </div>
-            <div class="flip-card-back">
-              <div class="card-title">
-                <span>API</span>
-                <span>01</span>
-              </div>
-              <div class="card-copy">
-                <p>账号管理</p>
-                <p>密钥配置</p>
-                <p>连接测试</p>
-                <p>启用控制</p>
-              </div>
-              <div class="card-title">
-                <span>01</span>
-                <span>配置</span>
-              </div>
-            </div>
-          </div>
+    <!-- 标签导航 -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="api">API</button>
+      <button class="tab" data-tab="schedule">Schedule</button>
+      <button class="tab" data-tab="logs">Logs</button>
+    </nav>
+
+    <!-- API 配置 -->
+    <section class="tab-content active" id="apiTab">
+      <h2>API Configuration</h2>
+
+      <form class="form" id="apiForm">
+        <div class="form-group">
+          <label for="accountName">Account Name</label>
+          <input type="text" id="accountName" placeholder="My Account" required>
+        </div>
+
+        <div class="form-group">
+          <label for="apiKey">API Key</label>
+          <input type="password" id="apiKey" placeholder="Enter your API key" required>
+          <small>Your API key will be encrypted and stored securely</small>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" id="testConnectionBtn">Test Connection</button>
+        </div>
+      </form>
+
+      <div class="alert hidden" id="apiAlert"></div>
+
+      <!-- 账号列表 -->
+      <div class="section">
+        <h3>Accounts</h3>
+        <div class="account-list" id="accountList">
+          <div class="loading">Loading...</div>
         </div>
       </div>
+    </section>
 
-      <div class="card" id="hero-card-2" data-tab="schedule">
-        <div class="card-wrapper">
-          <div class="flip-card-inner">
-            <div class="flip-card-front">
-              <div class="card-title">
-                <span>定时</span>
-                <span>02</span>
-              </div>
-              <div class="card-emoji">⏰</div>
-              <div class="card-title">
-                <span>02</span>
-                <span>设置</span>
-              </div>
-            </div>
-            <div class="flip-card-back">
-              <div class="card-title">
-                <span>定时</span>
-                <span>02</span>
-              </div>
-              <div class="card-copy">
-                <p>重置时间</p>
-                <p>自动执行</p>
-                <p>通知提醒</p>
-                <p>时区配置</p>
-              </div>
-              <div class="card-title">
-                <span>02</span>
-                <span>设置</span>
-              </div>
-            </div>
-          </div>
+    <!-- 定时设置 -->
+    <section class="tab-content" id="scheduleTab">
+      <h2>Schedule Settings</h2>
+
+      <form class="form" id="scheduleForm">
+        <div class="form-group">
+          <label for="firstResetTime">First Reset Time</label>
+          <input type="time" id="firstResetTime" value="18:50">
         </div>
+
+        <div class="form-group">
+          <label for="secondResetTime">Second Reset Time</label>
+          <input type="time" id="secondResetTime" value="23:55">
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox">
+            <input type="checkbox" id="autoResetEnabled" checked>
+            <span>Enable auto reset</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox">
+            <input type="checkbox" id="notificationsEnabled" checked>
+            <span>Enable notifications</span>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save Settings</button>
+        </div>
+      </form>
+
+      <div class="alert hidden" id="scheduleAlert"></div>
+    </section>
+
+    <!-- 日志记录 -->
+    <section class="tab-content" id="logsTab">
+      <h2>Logs</h2>
+
+      <div class="logs-actions">
+        <button class="btn btn-secondary" id="refreshLogsBtn">Refresh</button>
+        <button class="btn btn-secondary" id="clearLogsBtn">Clear Logs</button>
       </div>
 
-      <div class="card" id="hero-card-3" data-tab="logs">
-        <div class="card-wrapper">
-          <div class="flip-card-inner">
-            <div class="flip-card-front">
-              <div class="card-title">
-                <span>日志</span>
-                <span>03</span>
-              </div>
-              <div class="card-emoji">📋</div>
-              <div class="card-title">
-                <span>03</span>
-                <span>记录</span>
-              </div>
-            </div>
-            <div class="flip-card-back">
-              <div class="card-title">
-                <span>日志</span>
-                <span>03</span>
-              </div>
-              <div class="card-copy">
-                <p>操作记录</p>
-                <p>错误追踪</p>
-                <p>状态监控</p>
-                <p>历史查询</p>
-              </div>
-              <div class="card-title">
-                <span>03</span>
-                <span>记录</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="logs-container" id="logsContainer">
+        <div class="loading">Loading...</div>
       </div>
-    </div>
-  </section>
-
-  <!-- 主内容区 -->
-  <main class="main">
-      <!-- API 配置 Tab -->
-      <section class="tab-content active" id="apiTab">
-        <h2 class="tab-title">API 配置</h2>
-        <p class="tab-description">配置你的 88code API 密钥以开始使用</p>
-
-        <form class="form" id="apiForm">
-          <div class="form-group">
-            <label class="form-label" for="accountName">账号名称</label>
-            <input
-              type="text"
-              id="accountName"
-              class="form-input"
-              placeholder="我的主账号"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="apiKey">API 密钥</label>
-            <input
-              type="password"
-              id="apiKey"
-              class="form-input"
-              placeholder="输入你的 API 密钥"
-              required
-            />
-            <p class="form-hint">你的 API 密钥将被加密存储</p>
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">保存配置</button>
-            <button type="button" class="btn btn-secondary" id="testConnectionBtn">测试连接</button>
-          </div>
-        </form>
-
-        <div class="alert hidden" id="apiAlert"></div>
-
-        <!-- 账号列表 -->
-        <div class="account-list-section">
-          <h3 class="section-title">已添加的账号</h3>
-          <div class="account-list" id="accountList">
-            <div class="account-list-loading">加载中...</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 定时设置 Tab -->
-      <section class="tab-content" id="scheduleTab">
-        <h2 class="tab-title">定时设置</h2>
-        <p class="tab-description">配置自动重置的时间</p>
-
-        <form class="form" id="scheduleForm">
-          <div class="form-group">
-            <label class="form-label" for="firstResetTime">首次重置时间</label>
-            <input
-              type="time"
-              id="firstResetTime"
-              class="form-input"
-              value="18:50"
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="secondResetTime">二次重置时间</label>
-            <input
-              type="time"
-              id="secondResetTime"
-              class="form-input"
-              value="23:55"
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">
-              <input type="checkbox" id="autoResetEnabled" checked />
-              启用自动重置
-            </label>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">
-              <input type="checkbox" id="notificationsEnabled" checked />
-              启用通知
-            </label>
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">保存设置</button>
-          </div>
-        </form>
-
-        <div class="alert hidden" id="scheduleAlert"></div>
-      </section>
-
-      <!-- 日志记录 Tab -->
-      <section class="tab-content" id="logsTab">
-        <h2 class="tab-title">日志记录</h2>
-        <p class="tab-description">查看系统操作日志</p>
-
-        <div class="logs-actions">
-          <button class="btn btn-secondary" id="refreshLogsBtn">刷新</button>
-          <button class="btn btn-secondary" id="clearLogsBtn">清空日志</button>
-        </div>
-
-        <div class="logs-container" id="logsContainer">
-          <div class="logs-loading">加载中...</div>
-        </div>
-      </section>
-    </main>
+    </section>
   </div>
 
   <script type="module" src="options.js"></script>

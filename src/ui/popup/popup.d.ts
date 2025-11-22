@@ -1,8 +1,5 @@
 /**
- * Popup Script
- * Popup 界面交互逻辑
- *
- * @author Half open flowers
+ * Popup Script - Minimal UI
  */
 export {};
 //# sourceMappingURL=popup.d.ts.map

@@ -1,8 +1,8 @@
 {
-  "name": "88code-smart-reset",
-  "version": "1.2.4",
-  "description": "88code Smart Reset - 智能重置管理工具，支持 resetCount 检查",
-  "author": "Half open flowers <1816524875@qq.com>",
+  "name": "88code-statusbar",
+  "version": "1.3.0",
+  "description": "88CODE 状态栏 - 极简的 88code 积分监控与智能重置管理扩展",
+  "author": "Based on 88code-smart-reset by Rogers-F",
   "license": "MIT",
   "type": "module",
   "scripts": {

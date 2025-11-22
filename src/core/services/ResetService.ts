@@ -73,7 +73,14 @@ export class ResetService {
       await Logger.info('DEBUG_SUBSCRIPTIONS', `获取到 ${subscriptions.length} 个订阅，开始分析...`, account.id);
 
       // 2. 过滤 MONTHLY 订阅（双重 PAYGO 保护 + 冷却检查）
+      // 优先处理 PLUS 订阅，跳过 FREE 订阅
       const monthlySubscriptions = subscriptions.filter((sub) => {
+        // 跳过 FREE 订阅，只处理付费订阅（如 PLUS）
+        if (sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE')) {
+          Logger.info('SUBSCRIPTION_SKIPPED', `跳过 FREE 订阅 (ID: ${sub.id})`, account.id).catch(() => {});
+          return false;
+        }
+
         // 双重检查：确保不是 PAYGO
         if (isPaygoSubscription(sub)) {
           const skipMsg = `PAYGO 订阅受保护，已跳过 (ID: ${sub.id}, Plan: ${sub.subscriptionPlan.planType})`;
@@ -100,7 +107,16 @@ export class ResetService {
             const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
             const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
 
-            const skipMsg = `冷却中，还需等待 ${remainingHours}小时${remainingMinutes}分钟 (上次重置: ${sub.lastCreditReset})`;
+            // 计算下次可刷新时间
+            const nextAvailableTime = new Date(lastResetTime + cooldownPeriod);
+            const timeStr = nextAvailableTime.toLocaleString('zh-CN', {
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+
+            const skipMsg = `还需等待 ${remainingHours}小时${remainingMinutes}分钟，${timeStr} 后可刷新`;
             result.skippedCount += 1;
             result.subscriptions.push({
               subscriptionId: String(sub.id),
@@ -177,12 +193,12 @@ export class ResetService {
         result.status = 'SKIPPED';
 
         // 分析跳过原因，生成友好提示
-        const cooldownSkipped = result.subscriptions.filter(s => s.message?.includes('冷却中'));
+        const cooldownSkipped = result.subscriptions.filter(s => s.message?.includes('还需等待'));
         const paygoSkipped = result.subscriptions.filter(s => s.message?.includes('PAYGO'));
         const resetTimesSkipped = result.subscriptions.filter(s => s.message?.includes('重置次数'));
 
         if (cooldownSkipped.length > 0) {
-          result.summary = `冷却中：${cooldownSkipped[0]?.message || '请等待5小时后再试'}`;
+          result.summary = cooldownSkipped[0]?.message || '冷却中，请等待5小时后再试';
         } else if (paygoSkipped.length > 0) {
           result.summary = `所有订阅均为PAYGO类型，无需重置`;
         } else if (resetTimesSkipped.length > 0) {

@@ -1,28 +1,19 @@
 /**
- * Options Page Script
- *
- * @author Half open flowers
+ * Options Page Script - Minimal UI
  */
 
-export {}; // 使此文件成为模块，避免全局作用域冲突
+export {};
 
-// ==================== DOM 元素 ====================
-
-// 导航（Hero卡片）
-const heroCards = document.querySelectorAll('.hero-cards .card');
+// DOM 元素
+const tabs = document.querySelectorAll('.tab') as NodeListOf<HTMLButtonElement>;
 const tabContents = document.querySelectorAll('.tab-content');
-const heroSection = document.querySelector('.hero') as HTMLElement;
-const backToHeroBtn = document.getElementById('backToHeroBtn') as HTMLButtonElement;
-const logoBtn = document.querySelector('.logo') as HTMLElement;
 
-// API 配置
 const apiForm = document.getElementById('apiForm') as HTMLFormElement;
 const accountNameInput = document.getElementById('accountName') as HTMLInputElement;
 const apiKeyInput = document.getElementById('apiKey') as HTMLInputElement;
 const testConnectionBtn = document.getElementById('testConnectionBtn') as HTMLButtonElement;
 const apiAlert = document.getElementById('apiAlert') as HTMLElement;
 
-// 定时设置
 const scheduleForm = document.getElementById('scheduleForm') as HTMLFormElement;
 const firstResetTimeInput = document.getElementById('firstResetTime') as HTMLInputElement;
 const secondResetTimeInput = document.getElementById('secondResetTime') as HTMLInputElement;
@@ -30,19 +21,13 @@ const autoResetEnabledCheckbox = document.getElementById('autoResetEnabled') as 
 const notificationsEnabledCheckbox = document.getElementById('notificationsEnabled') as HTMLInputElement;
 const scheduleAlert = document.getElementById('scheduleAlert') as HTMLElement;
 
-// 日志
 const refreshLogsBtn = document.getElementById('refreshLogsBtn') as HTMLButtonElement;
 const clearLogsBtn = document.getElementById('clearLogsBtn') as HTMLButtonElement;
 const logsContainer = document.getElementById('logsContainer') as HTMLElement;
 
-// 账号列表
 const accountList = document.getElementById('accountList') as HTMLElement;
 
-// ==================== 工具函数 ====================
-
-/**
- * 发送消息到后台
- */
+// 工具函数
 const sendMessage = async <T>(type: string, payload?: unknown): Promise<T> => {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ type, payload }, (response) => {
@@ -52,7 +37,7 @@ const sendMessage = async <T>(type: string, payload?: unknown): Promise<T> => {
       }
 
       if (!response || !response.success) {
-        reject(new Error(response?.error?.message || '未知错误'));
+        reject(new Error(response?.error?.message || 'Unknown error'));
         return;
       }
 
@@ -61,10 +46,7 @@ const sendMessage = async <T>(type: string, payload?: unknown): Promise<T> => {
   });
 };
 
-/**
- * 显示提示
- */
-const showAlert = (element: HTMLElement, message: string, type: 'success' | 'error'): void => {
+const showAlert = (element: HTMLElement, message: string, type: 'success' | 'error' | 'warning'): void => {
   element.textContent = message;
   element.className = `alert ${type}`;
   element.classList.remove('hidden');
@@ -74,24 +56,18 @@ const showAlert = (element: HTMLElement, message: string, type: 'success' | 'err
   }, 3000);
 };
 
-/**
- * 格式化时间戳
- */
 const formatTimestamp = (timestamp: number): string => {
   return new Date(timestamp).toLocaleString('zh-CN');
 };
 
-// ==================== Tab 切换 ====================
+// Tab 切换
+tabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    const tabId = tab.getAttribute('data-tab');
 
-heroCards.forEach((card) => {
-  card.addEventListener('click', () => {
-    const tabId = card.getAttribute('data-tab');
+    tabs.forEach((t) => t.classList.remove('active'));
+    tab.classList.add('active');
 
-    // 更新卡片状态
-    heroCards.forEach((item) => item.classList.remove('active'));
-    card.classList.add('active');
-
-    // 更新内容显示
     tabContents.forEach((content) => {
       content.classList.remove('active');
       if (content.id === `${tabId}Tab`) {
@@ -99,45 +75,13 @@ heroCards.forEach((card) => {
       }
     });
 
-    // 显示返回按钮
-    backToHeroBtn.style.display = 'block';
-
-    // 平滑滚动到主内容区
-    document.querySelector('.main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    // 如果切换到日志 Tab，加载日志
     if (tabId === 'logs') {
       loadLogs().catch(console.error);
     }
   });
 });
 
-// ==================== 返回Hero ====================
-
-const scrollToHero = () => {
-  // 滚动回Hero section
-  heroSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  // 隐藏返回按钮
-  setTimeout(() => {
-    backToHeroBtn.style.display = 'none';
-  }, 600);
-
-  // 清除卡片active状态
-  heroCards.forEach((item) => item.classList.remove('active'));
-};
-
-// 返回按钮点击事件
-backToHeroBtn.addEventListener('click', scrollToHero);
-
-// Logo点击事件（也可以返回）
-logoBtn.addEventListener('click', scrollToHero);
-
-// ==================== API 配置 ====================
-
-/**
- * 保存 API 配置
- */
+// API 配置
 apiForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -145,45 +89,37 @@ apiForm.addEventListener('submit', async (e) => {
   const apiKey = apiKeyInput.value.trim();
 
   if (!accountName || !apiKey) {
-    showAlert(apiAlert, '请填写完整信息', 'error');
+    showAlert(apiAlert, 'Please fill all fields', 'error');
     return;
   }
 
   try {
     await sendMessage('SAVE_API_KEY', { accountName, apiKey });
-    showAlert(apiAlert, 'API 密钥已保存', 'success');
+    showAlert(apiAlert, 'API key saved successfully', 'success');
     apiForm.reset();
-    // 重新加载账号列表
     loadAccountList().catch(console.error);
   } catch (error) {
-    showAlert(apiAlert, error instanceof Error ? error.message : '保存失败', 'error');
+    showAlert(apiAlert, error instanceof Error ? error.message : 'Save failed', 'error');
   }
 });
 
-/**
- * 测试连接
- */
 testConnectionBtn.addEventListener('click', async () => {
   try {
     const result = await sendMessage<{ connected: boolean }>('TEST_CONNECTION');
 
     if (result.connected) {
-      showAlert(apiAlert, '连接成功！', 'success');
+      showAlert(apiAlert, 'Connection successful!', 'success');
     } else {
-      showAlert(apiAlert, '连接失败，请检查 API 密钥', 'error');
+      showAlert(apiAlert, 'Connection failed', 'error');
     }
   } catch (error) {
-    showAlert(apiAlert, error instanceof Error ? error.message : '测试失败', 'error');
+    showAlert(apiAlert, error instanceof Error ? error.message : 'Test failed', 'error');
   }
 });
 
-// ==================== 账号列表 ====================
-
-/**
- * 加载账号列表
- */
+// 账号列表
 const loadAccountList = async (): Promise<void> => {
-  accountList.innerHTML = '<div class="account-list-loading">加载中...</div>';
+  accountList.innerHTML = '<div class="loading">Loading...</div>';
 
   try {
     const accounts = await sendMessage<Array<{
@@ -197,281 +133,156 @@ const loadAccountList = async (): Promise<void> => {
     }>>('GET_ACCOUNTS');
 
     if (accounts.length === 0) {
-      accountList.innerHTML = '<div class="account-list-empty">暂无账号，请在上方添加</div>';
+      accountList.innerHTML = '<div class="loading">No accounts yet</div>';
       return;
     }
 
-    // 渲染账号列表
     accountList.innerHTML = '';
     accounts.forEach((account) => {
-      const card = createAccountCard(account);
-      accountList.appendChild(card);
+      const item = createAccountItem(account);
+      accountList.appendChild(item);
     });
   } catch (error) {
-    accountList.innerHTML = '<div class="account-list-empty">加载失败</div>';
-    console.error('加载账号列表失败:', error);
+    accountList.innerHTML = '<div class="loading">Failed to load</div>';
+    console.error('Load accounts failed:', error);
   }
 };
 
-/**
- * 创建账号卡片
- */
-const createAccountCard = (account: {
+const createAccountItem = (account: {
   id: string;
   name: string;
-  apiKey: string;
   email: string;
   enabled: boolean;
-  createdAt: number;
-  lastUpdated: number;
 }): HTMLElement => {
-  const card = document.createElement('div');
-  card.className = 'account-card';
-  card.dataset['enabled'] = account.enabled.toString();
+  const item = document.createElement('div');
+  item.className = 'account-item';
 
-  // 图标（显示账号名称首字母）
-  const icon = document.createElement('div');
-  icon.className = 'account-icon';
-  icon.textContent = account.name.charAt(0).toUpperCase();
-
-  // 账号信息
   const info = document.createElement('div');
   info.className = 'account-info';
 
-  // 账号名称和状态
-  const nameDiv = document.createElement('div');
-  nameDiv.className = 'account-name';
+  const name = document.createElement('div');
+  name.className = 'account-name';
+  name.textContent = account.name;
 
-  const nameText = document.createElement('span');
-  nameText.textContent = account.name;
+  const status = document.createElement('div');
+  status.className = 'account-status';
+  status.textContent = account.enabled ? 'Active' : 'Disabled';
 
-  const statusBadge = document.createElement('span');
-  statusBadge.className = `account-status ${account.enabled ? 'enabled' : 'disabled'}`;
-  statusBadge.textContent = account.enabled ? '✓ 启用' : '✕ 禁用';
+  info.appendChild(name);
+  info.appendChild(status);
 
-  nameDiv.appendChild(nameText);
-  nameDiv.appendChild(statusBadge);
-
-  // 元数据（创建时间、ID等）
-  const metaDiv = document.createElement('div');
-  metaDiv.className = 'account-meta';
-
-  const idItem = document.createElement('div');
-  idItem.className = 'account-meta-item';
-  idItem.innerHTML = `<span>ID:</span> <span>${account.id.substring(0, 8)}...</span>`;
-
-  const timeItem = document.createElement('div');
-  timeItem.className = 'account-meta-item';
-  timeItem.innerHTML = `<span>创建:</span> <span>${formatTimestamp(account.createdAt)}</span>`;
-
-  metaDiv.appendChild(idItem);
-  metaDiv.appendChild(timeItem);
-
-  info.appendChild(nameDiv);
-  info.appendChild(metaDiv);
-
-  // 操作按钮
   const actions = document.createElement('div');
   actions.className = 'account-actions';
 
-  // 切换启用/禁用按钮
   const toggleBtn = document.createElement('button');
-  toggleBtn.className = 'account-btn account-btn-toggle';
-  toggleBtn.textContent = account.enabled ? '禁用' : '启用';
+  toggleBtn.className = 'btn btn-secondary';
+  toggleBtn.textContent = account.enabled ? 'Disable' : 'Enable';
   toggleBtn.onclick = () => toggleAccount(account.id, !account.enabled);
 
-  // 删除按钮
   const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'account-btn account-btn-delete';
-  deleteBtn.textContent = '删除';
-  deleteBtn.onclick = () => deleteAccount(account.id, account.name);
+  deleteBtn.className = 'btn btn-secondary';
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.onclick = () => deleteAccount(account.id);
 
   actions.appendChild(toggleBtn);
   actions.appendChild(deleteBtn);
 
-  // 组装卡片
-  card.appendChild(icon);
-  card.appendChild(info);
-  card.appendChild(actions);
+  item.appendChild(info);
+  item.appendChild(actions);
 
-  return card;
+  return item;
 };
 
-/**
- * 切换账号启用状态
- */
 const toggleAccount = async (accountId: string, enabled: boolean): Promise<void> => {
   try {
     await sendMessage('UPDATE_ACCOUNT', { accountId, enabled });
     loadAccountList().catch(console.error);
   } catch (error) {
-    showAlert(apiAlert, error instanceof Error ? error.message : '操作失败', 'error');
+    console.error('Toggle account failed:', error);
   }
 };
 
-/**
- * 删除账号
- */
-const deleteAccount = async (accountId: string, accountName: string): Promise<void> => {
-  if (!confirm(`确定要删除账号"${accountName}"吗？\n\n此操作不可撤销。`)) {
+const deleteAccount = async (accountId: string): Promise<void> => {
+  if (!confirm('Are you sure you want to delete this account?')) {
     return;
   }
 
   try {
     await sendMessage('DELETE_ACCOUNT', { accountId });
-    showAlert(apiAlert, '账号已删除', 'success');
     loadAccountList().catch(console.error);
   } catch (error) {
-    showAlert(apiAlert, error instanceof Error ? error.message : '删除失败', 'error');
+    console.error('Delete account failed:', error);
   }
 };
 
-// ==================== 定时设置 ====================
-
-/**
- * 加载定时设置
- */
-const loadScheduleConfig = async (): Promise<void> => {
-  try {
-    const data = await sendMessage<{
-      config: {
-        firstResetTime: string;
-        secondResetTime: string;
-        enabled: boolean;
-      };
-      preferences: {
-        autoResetEnabled: boolean;
-        notificationsEnabled: boolean;
-      };
-    }>('GET_CONFIG');
-
-    firstResetTimeInput.value = data.config.firstResetTime;
-    secondResetTimeInput.value = data.config.secondResetTime;
-    autoResetEnabledCheckbox.checked = data.config.enabled;
-    notificationsEnabledCheckbox.checked = data.preferences.notificationsEnabled;
-  } catch (error) {
-    console.error('加载配置失败:', error);
-  }
-};
-
-/**
- * 保存定时设置
- */
+// 定时设置
 scheduleForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  const scheduleConfig = {
-    firstResetTime: firstResetTimeInput.value,
-    secondResetTime: secondResetTimeInput.value,
-    enabled: autoResetEnabledCheckbox.checked,
-    timezone: 'Asia/Shanghai', // 北京时间（东八区）
-  };
-
-  const preferences = {
-    autoResetEnabled: autoResetEnabledCheckbox.checked,
-    notificationsEnabled: notificationsEnabledCheckbox.checked,
-    timezone: 'Asia/Shanghai', // 北京时间（东八区）
-    theme: 'dark' as const,
-  };
-
   try {
-    await sendMessage('UPDATE_CONFIG', { scheduleConfig, preferences });
-    showAlert(scheduleAlert, '设置已保存', 'success');
+    await sendMessage('UPDATE_CONFIG', {
+      scheduleConfig: {
+        firstResetTime: firstResetTimeInput.value,
+        secondResetTime: secondResetTimeInput.value,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        enabled: autoResetEnabledCheckbox.checked,
+      },
+      preferences: {
+        enableNotifications: notificationsEnabledCheckbox.checked,
+      },
+    });
+
+    showAlert(scheduleAlert, 'Settings saved successfully', 'success');
   } catch (error) {
-    showAlert(scheduleAlert, error instanceof Error ? error.message : '保存失败', 'error');
+    showAlert(scheduleAlert, error instanceof Error ? error.message : 'Save failed', 'error');
   }
 });
 
-// ==================== 日志 ====================
-
-/**
- * 加载日志
- */
+// 日志
 const loadLogs = async (): Promise<void> => {
-  // 显示加载状态
-  logsContainer.innerHTML = '';
-  const loadingDiv = document.createElement('div');
-  loadingDiv.className = 'logs-loading';
-  loadingDiv.textContent = '加载中...';
-  logsContainer.appendChild(loadingDiv);
+  logsContainer.innerHTML = '<div class="loading">Loading...</div>';
 
   try {
     const logs = await sendMessage<Array<{
-      id: string;
       timestamp: number;
       level: string;
-      operation: string;
       message: string;
-    }>>('GET_LOGS', { limit: 100 });
-
-    // 清空容器
-    logsContainer.innerHTML = '';
+    }>>('GET_LOGS');
 
     if (logs.length === 0) {
-      const emptyDiv = document.createElement('div');
-      emptyDiv.className = 'logs-loading';
-      emptyDiv.textContent = '暂无日志';
-      logsContainer.appendChild(emptyDiv);
+      logsContainer.innerHTML = '<div class="loading">No logs</div>';
       return;
     }
 
-    // 使用 DOM API 安全地创建日志条目（防止 XSS）
+    logsContainer.innerHTML = '';
     logs.forEach((log) => {
-      // 创建日志条目容器
-      const logEntry = document.createElement('div');
-      logEntry.className = 'log-entry';
+      const item = document.createElement('div');
+      item.className = `log-item ${log.level}`;
 
-      // 创建日志头部
-      const logHeader = document.createElement('div');
-      logHeader.className = 'log-header';
+      const time = document.createElement('span');
+      time.className = 'log-time';
+      time.textContent = formatTimestamp(log.timestamp);
 
-      // 创建日志级别标签
-      const logLevel = document.createElement('span');
-      logLevel.className = `log-level ${log.level.toLowerCase()}`;
-      logLevel.textContent = log.level; // textContent 自动转义，防止 XSS
+      const message = document.createElement('span');
+      message.className = 'log-message';
+      message.textContent = log.message;
 
-      // 创建时间标签
-      const logTime = document.createElement('span');
-      logTime.className = 'log-time';
-      logTime.textContent = formatTimestamp(log.timestamp);
-
-      // 组装头部
-      logHeader.appendChild(logLevel);
-      logHeader.appendChild(logTime);
-
-      // 创建日志消息
-      const logMessage = document.createElement('div');
-      logMessage.className = 'log-message';
-      logMessage.textContent = `${log.operation}: ${log.message}`; // textContent 自动转义
-
-      // 组装完整的日志条目
-      logEntry.appendChild(logHeader);
-      logEntry.appendChild(logMessage);
-
-      // 添加到容器
-      logsContainer.appendChild(logEntry);
+      item.appendChild(time);
+      item.appendChild(message);
+      logsContainer.appendChild(item);
     });
   } catch (error) {
-    logsContainer.innerHTML = '';
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'logs-loading';
-    errorDiv.textContent = '加载失败';
-    logsContainer.appendChild(errorDiv);
+    logsContainer.innerHTML = '<div class="loading">Failed to load</div>';
+    console.error('Load logs failed:', error);
   }
 };
 
-/**
- * 刷新日志
- */
 refreshLogsBtn.addEventListener('click', () => {
   loadLogs().catch(console.error);
 });
 
-/**
- * 清空日志
- */
 clearLogsBtn.addEventListener('click', async () => {
-  if (!confirm('确定要清空所有日志吗？此操作不可撤销。')) {
+  if (!confirm('Are you sure you want to clear all logs?')) {
     return;
   }
 
@@ -479,19 +290,35 @@ clearLogsBtn.addEventListener('click', async () => {
     await sendMessage('CLEAR_LOGS');
     loadLogs().catch(console.error);
   } catch (error) {
-    console.error('清空日志失败:', error);
+    console.error('Clear logs failed:', error);
   }
 });
 
-// ==================== 初始化 ====================
-
-/**
- * 初始化页面
- */
+// 初始化
 const initialize = async (): Promise<void> => {
-  await loadScheduleConfig();
-  await loadAccountList();
+  try {
+    // 加载账号列表
+    await loadAccountList();
+
+    // 加载配置
+    const config = await sendMessage<{
+      scheduleConfig: {
+        firstResetTime: string;
+        secondResetTime: string;
+        enabled: boolean;
+      };
+      preferences: {
+        enableNotifications: boolean;
+      };
+    }>('GET_CONFIG');
+
+    firstResetTimeInput.value = config.scheduleConfig?.firstResetTime || '18:50';
+    secondResetTimeInput.value = config.scheduleConfig?.secondResetTime || '23:55';
+    autoResetEnabledCheckbox.checked = config.scheduleConfig?.enabled ?? true;
+    notificationsEnabledCheckbox.checked = config.preferences?.enableNotifications ?? true;
+  } catch (error) {
+    console.error('Initialize failed:', error);
+  }
 };
 
-// 启动
 initialize().catch(console.error);

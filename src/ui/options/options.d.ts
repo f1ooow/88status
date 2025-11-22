@@ -1,7 +1,5 @@
 /**
- * Options Page Script
- *
- * @author Half open flowers
+ * Options Page Script - Minimal UI
  */
 export {};
 //# sourceMappingURL=options.d.ts.map

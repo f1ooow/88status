@@ -54,7 +54,13 @@ export class ResetService {
             // 输出订阅摘要信息
             await Logger.info('DEBUG_SUBSCRIPTIONS', `获取到 ${subscriptions.length} 个订阅，开始分析...`, account.id);
             // 2. 过滤 MONTHLY 订阅（双重 PAYGO 保护 + 冷却检查）
+            // 优先处理 PLUS 订阅，跳过 FREE 订阅
             const monthlySubscriptions = subscriptions.filter((sub) => {
+                // 跳过 FREE 订阅，只处理付费订阅（如 PLUS）
+                if (sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE')) {
+                    Logger.info('SUBSCRIPTION_SKIPPED', `跳过 FREE 订阅 (ID: ${sub.id})`, account.id).catch(() => { });
+                    return false;
+                }
                 // 双重检查：确保不是 PAYGO
                 if (isPaygoSubscription(sub)) {
                     const skipMsg = `PAYGO 订阅受保护，已跳过 (ID: ${sub.id}, Plan: ${sub.subscriptionPlan.planType})`;
@@ -78,7 +84,15 @@ export class ResetService {
                         const remainingMs = cooldownPeriod - timeSinceLastReset;
                         const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
                         const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
-                        const skipMsg = `冷却中，还需等待 ${remainingHours}小时${remainingMinutes}分钟 (上次重置: ${sub.lastCreditReset})`;
+                        // 计算下次可刷新时间
+                        const nextAvailableTime = new Date(lastResetTime + cooldownPeriod);
+                        const timeStr = nextAvailableTime.toLocaleString('zh-CN', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                        });
+                        const skipMsg = `还需等待 ${remainingHours}小时${remainingMinutes}分钟，${timeStr} 后可刷新`;
                         result.skippedCount += 1;
                         result.subscriptions.push({
                             subscriptionId: String(sub.id),
@@ -148,11 +162,11 @@ export class ResetService {
             if (monthlySubscriptions.length === 0) {
                 result.status = 'SKIPPED';
                 // 分析跳过原因，生成友好提示
-                const cooldownSkipped = result.subscriptions.filter(s => s.message?.includes('冷却中'));
+                const cooldownSkipped = result.subscriptions.filter(s => s.message?.includes('还需等待'));
                 const paygoSkipped = result.subscriptions.filter(s => s.message?.includes('PAYGO'));
                 const resetTimesSkipped = result.subscriptions.filter(s => s.message?.includes('重置次数'));
                 if (cooldownSkipped.length > 0) {
-                    result.summary = `冷却中：${cooldownSkipped[0]?.message || '请等待5小时后再试'}`;
+                    result.summary = cooldownSkipped[0]?.message || '冷却中，请等待5小时后再试';
                 }
                 else if (paygoSkipped.length > 0) {
                     result.summary = `所有订阅均为PAYGO类型，无需重置`;
@@ -293,18 +307,32 @@ export class ResetService {
                     duration: Date.now() - resetStart,
                 };
             }
-            // 验证重置成功（根据API返回的data字段）
-            const newCredits = response.data?.newCredits ?? usageBefore;
-            const resetSuccessful = response.success && response.data !== undefined;
+            // 验证重置成功
+            // 注意：88code API在成功时可能返回空响应，此时response.data可能为undefined
+            // 只要response.success为true，就认为重置成功
+            const resetSuccessful = response.success;
+            // 获取新的积分数（如果API返回了data，使用data.newCredits；否则无法获取）
+            const newCredits = response.data?.newCredits;
+            const resetAt = response.data?.resetAt;
+            let message;
+            if (resetSuccessful) {
+                if (newCredits !== undefined) {
+                    message = `成功重置（${usageBefore.toFixed(2)} → ${newCredits.toFixed(2)} Credits${resetAt ? `，重置时间：${resetAt}` : ''}）`;
+                }
+                else {
+                    message = `成功重置（服务器未返回详细数据）`;
+                }
+            }
+            else {
+                message = '重置失败';
+            }
             return {
                 subscriptionId,
                 plan: 'MONTHLY',
                 status: resetSuccessful ? 'SUCCESS' : 'FAILED',
-                message: resetSuccessful
-                    ? `成功重置（${usageBefore.toFixed(2)} → ${newCredits.toFixed(2)} Credits，重置时间：${response.data?.resetAt}）`
-                    : '重置未返回数据',
+                message,
                 usageBefore,
-                usageAfter: newCredits,
+                usageAfter: newCredits ?? usageBefore, // 如果没有新数据，保持原值
                 duration: Date.now() - resetStart,
             };
         }

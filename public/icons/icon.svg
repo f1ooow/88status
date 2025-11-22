@@ -1,4 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="24" fill="#4f46e5"/>
-  <text x="64" y="80" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="white">88</text>
+  <defs>
+    <!-- 主色渐变 -->
+    <linearGradient id="primary" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+
+    <!-- 次色渐变 -->
+    <linearGradient id="secondary" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#93c5fd"/>
+      <stop offset="100%" style="stop-color:#60a5fa"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 白色背景 -->
+  <rect width="128" height="128" rx="28" fill="white"/>
+
+  <!-- 3个柱子都亮 - 默认状态 -->
+  <g>
+    <rect x="22" y="48" width="24" height="54" rx="12" fill="url(#secondary)"/>
+    <rect x="52" y="26" width="24" height="76" rx="12" fill="url(#primary)"/>
+    <rect x="82" y="38" width="24" height="64" rx="12" fill="url(#secondary)"/>
+  </g>
+
+  <!-- 底部基准线 -->
+  <line x1="18" y1="106" x2="110" y2="106" stroke="url(#primary)" stroke-width="2.5" stroke-linecap="round" opacity="0.3"/>
 </svg>

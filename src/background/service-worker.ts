@@ -10,7 +10,7 @@ import { resetService } from '@core/services/ResetService';
 import { apiClient } from '@core/services/APIClient';
 import { StorageService } from '@storage/StorageService';
 import { Logger } from '@utils/logger';
-import type { MessageResponse } from '@/types';
+import type { MessageResponse, Subscription } from '@/types';
 
 // ==================== 生命周期事件 ====================
 
@@ -127,18 +127,50 @@ async function handleMessage(
           currentCredits: usage.currentCredits,
           creditLimit: usage.creditLimit,
           subscriptionName: usage.subscriptionName,
+          subscriptionEntityList: usage.subscriptionEntityList,
           fullUsage: usage,
         });
 
+        // 从订阅列表中筛选出非 FREE 的 MONTHLY 订阅
+        // 优先显示 PLUS 订阅，跳过 FREE 订阅
+        let targetSubscription: Subscription | null = null;
+
+        if (usage.subscriptionEntityList && usage.subscriptionEntityList.length > 0) {
+          const monthlySubscriptions = usage.subscriptionEntityList.filter(
+            (sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive,
+          );
+
+          // 优先级：PLUS > 其他非FREE > FREE（但我们不要FREE）
+          targetSubscription = monthlySubscriptions.find(
+            (sub) => sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('PLUS'),
+          ) || monthlySubscriptions.find(
+            (sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
+          ) || null;
+        }
+
+        // 如果没有找到合适的订阅，回退到主订阅（但检查是否为 FREE）
+        if (!targetSubscription) {
+          // 检查主订阅是否为 FREE
+          if (usage.subscriptionName?.toUpperCase().includes('FREE')) {
+            console.warn('[DEBUG] 主订阅是 FREE，跳过显示');
+            return createSuccessResponse(null);
+          }
+          // 使用主订阅数据
+          targetSubscription = null; // 标记使用主数据
+        }
+
         // 转换为前端期望的格式（88code使用Credits，不是GB）
         // 注意：currentCredits是剩余积分，不是已使用！
-        const remainingCredits = usage.currentCredits ?? 0;
-        const totalCredits = usage.creditLimit ?? 0;
+        const remainingCredits = targetSubscription ? targetSubscription.currentCredits : (usage.currentCredits ?? 0);
+        const totalCredits = targetSubscription
+          ? targetSubscription.subscriptionPlan.creditLimit
+          : (usage.creditLimit ?? 0);
         const usedCredits = Math.max(0, totalCredits - remainingCredits);
         const usagePercentage = totalCredits > 0 ? (usedCredits / totalCredits) * 100 : 0;
 
         // 🔍 调试：查看计算后的数据
         console.log('[DEBUG] getUsage 计算结果:', {
+          usingSubscription: targetSubscription?.subscriptionName || usage.subscriptionName,
           remainingCredits,
           totalCredits,
           usedCredits,
@@ -179,37 +211,94 @@ async function handleMessage(
         const nextTimes = await scheduler.getNextScheduledTime();
         const accounts = await StorageService.getAccounts();
 
-        // 计算下一次重置时间（取最近的那个）
+        // 计算下一次重置时间，需要考虑 resetTimes
         const now = Date.now();
         let nextScheduledReset: number | null = null;
+        let resetTimes = 2; // 默认值
+        let isOnCooldown = false;
+        let nextAvailableTime: number | null = null;
+
+        // 获取剩余刷新次数和冷却信息
+        if (accounts.length > 0 && accounts[0]) {
+          try {
+            const subscriptions = await apiClient.getSubscriptions(accounts[0].apiKey);
+            // 优先选择 PLUS 订阅，其次选择其他非 FREE 的 MONTHLY 订阅
+            const monthlySubscriptions = subscriptions.filter(
+              (sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive,
+            );
+            // 优先级：PLUS > 其他非FREE > FREE
+            const monthlySubscription = monthlySubscriptions.find(
+              (sub) => sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('PLUS'),
+            ) || monthlySubscriptions.find(
+              (sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
+            ) || monthlySubscriptions[0];
+            if (monthlySubscription) {
+              resetTimes = monthlySubscription.resetTimes ?? 0;
+
+              // 检查冷却时间
+              if (monthlySubscription.lastCreditReset) {
+                const lastResetTime = new Date(monthlySubscription.lastCreditReset).getTime();
+                const cooldownPeriod = 5 * 60 * 60 * 1000; // 5小时
+                const timeSinceLastReset = now - lastResetTime;
+
+                if (timeSinceLastReset < cooldownPeriod) {
+                  isOnCooldown = true;
+                  nextAvailableTime = lastResetTime + cooldownPeriod;
+                }
+              }
+            }
+          } catch (error) {
+            // 获取失败，使用默认值
+            console.error('[GET_STATUS] 获取订阅信息失败:', error);
+          }
+        }
+
+        // 根据 resetTimes 决定下次刷新时间
+        let nextResetType: 'first' | 'second' | null = null;
 
         if (nextTimes.firstReset && nextTimes.secondReset) {
-          // 如果两个都有，取离现在最近的未来时间
           const firstDiff = nextTimes.firstReset - now;
           const secondDiff = nextTimes.secondReset - now;
 
-          if (firstDiff > 0 && secondDiff > 0) {
-            // 两个都在未来，取最近的
-            nextScheduledReset = firstDiff < secondDiff ? nextTimes.firstReset : nextTimes.secondReset;
-          } else if (firstDiff > 0) {
-            // 只有first在未来
-            nextScheduledReset = nextTimes.firstReset;
-          } else if (secondDiff > 0) {
-            // 只有second在未来
-            nextScheduledReset = nextTimes.secondReset;
-          } else {
-            // 两个都过了，取first（明天的）
-            nextScheduledReset = nextTimes.firstReset;
+          if (resetTimes >= 2) {
+            // 有 2 次机会，18:50 和 23:55 都可以，取最近的
+            if (firstDiff > 0 && secondDiff > 0) {
+              if (firstDiff < secondDiff) {
+                nextScheduledReset = nextTimes.firstReset;
+                nextResetType = 'first';
+              } else {
+                nextScheduledReset = nextTimes.secondReset;
+                nextResetType = 'second';
+              }
+            } else if (firstDiff > 0) {
+              nextScheduledReset = nextTimes.firstReset;
+              nextResetType = 'first';
+            } else if (secondDiff > 0) {
+              nextScheduledReset = nextTimes.secondReset;
+              nextResetType = 'second';
+            }
+          } else if (resetTimes >= 1) {
+            // 只剩 1 次机会，18:50 会跳过，只能等 23:55
+            if (secondDiff > 0) {
+              nextScheduledReset = nextTimes.secondReset;
+              nextResetType = 'second';
+            }
           }
+          // resetTimes = 0，不设置 nextScheduledReset，返回 null
         } else {
-          // 只有一个，就用那个
+          // 只有一个，就用那个（但也要检查 resetTimes）
           nextScheduledReset = nextTimes.firstReset ?? nextTimes.secondReset;
+          nextResetType = nextTimes.firstReset ? 'first' : 'second';
         }
 
         return createSuccessResponse({
           connected: accounts.length > 0,
           nextScheduledReset,
+          nextResetType, // 返回是第一次还是第二次
           accountCount: accounts.length,
+          resetTimes, // 返回剩余刷新次数
+          isOnCooldown, // 是否在冷却中
+          nextAvailableTime, // 下次可用时间
         });
       }
 

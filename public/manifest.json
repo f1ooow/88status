@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "88code 自动重置助手",
-  "version": "1.2.4",
-  "description": "自动重置 88code 账号，智能管理订阅配额，企业级安全防护",
-  "author": "Half open flowers <1816524875@qq.com>",
+  "name": "88CODE 状态栏",
+  "version": "1.3.0",
+  "description": "极简的 88code 积分监控与智能重置管理扩展",
 
   "icons": {
     "16": "icons/icon-16.png",
@@ -20,7 +19,7 @@
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     },
-    "default_title": "88code 自动重置"
+    "default_title": "88CODE 状态栏"
   },
 
   "options_page": "options/options.html",
