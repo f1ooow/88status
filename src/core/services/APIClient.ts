@@ -42,9 +42,9 @@ const API_CONFIG = {
  */
 const RATE_LIMIT_CONFIG = {
   /** 桶容量（令牌数） */
-  BUCKET_CAPACITY: 10,
+  BUCKET_CAPACITY: 30,
   /** 补充速率（令牌/分钟） */
-  REFILL_RATE: 10,
+  REFILL_RATE: 20,
   /** 补充间隔（毫秒） */
   REFILL_INTERVAL: 60000,
 } as const;
@@ -152,7 +152,7 @@ export class APIClient {
     // 序列化请求体
     const bodyString = body ? JSON.stringify(body) : undefined;
 
-    // 构造请求头（88code只需要Authorization认证，无需签名）
+    // 构造请求头（88code直接使用API Key认证，不需要Bearer前缀）
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       Authorization: apiKey,
@@ -407,14 +407,26 @@ export class APIClient {
   async getSubscriptions(apiKey: string): Promise<Subscription[]> {
     await Logger.info('API_CALL', '获取订阅列表');
 
-    const response = await this.request<Subscription[]>(
+    const response = await this.request<any>(
       'POST',
       '/api/subscription',
       apiKey,
     );
 
-    await Logger.success('API_CALL', `获取到 ${response.length} 个订阅`);
-    return response;
+    console.log('[DEBUG] getSubscriptions 返回的原始响应:', {
+      response,
+      responseData: response.data,
+      hasData: 'data' in response,
+      dataIsArray: Array.isArray(response.data),
+      responseKeys: Object.keys(response),
+    });
+
+    // 88code API 返回的数据结构是 { code, msg, ok, data: [...] }
+    // 需要从 data 字段中提取实际数据
+    const subscriptions = response.data as Subscription[] || [];
+
+    await Logger.success('API_CALL', `获取到 ${subscriptions.length} 个订阅`);
+    return subscriptions;
   }
 
   /**
@@ -425,21 +437,24 @@ export class APIClient {
   async getUsage(apiKey: string): Promise<UsageResponse> {
     await Logger.info('API_CALL', '获取使用情况');
 
-    const response = await this.request<UsageResponse>('POST', '/api/usage', apiKey);
+    const response = await this.request<any>('POST', '/api/usage', apiKey);
 
     // 🔍 调试：查看getUsage返回的原始响应
     console.log('[DEBUG] APIClient.getUsage 返回的原始响应:', {
       response,
-      currentCredits: response.currentCredits,
-      creditLimit: response.creditLimit,
-      hasCurrentCredits: 'currentCredits' in response,
-      hasCreditLimit: 'creditLimit' in response,
+      responseData: response.data,
+      currentCredits: response.data?.currentCredits,
+      creditLimit: response.data?.creditLimit,
+      hasData: 'data' in response,
       responseKeys: Object.keys(response),
       responseJSON: JSON.stringify(response),
     });
 
     await Logger.success('API_CALL', '获取使用情况成功');
-    return response;
+
+    // 88code API 返回的数据结构是 { code, msg, ok, data: { ... } }
+    // 需要从 data 字段中提取实际数据
+    return response.data as UsageResponse;
   }
 
   /**
@@ -451,7 +466,7 @@ export class APIClient {
   async resetCredits(apiKey: string, subscriptionId: string): Promise<ResetResponse> {
     await Logger.info('API_CALL', `重置积分: ${subscriptionId}`);
 
-    const response = await this.request<ResetResponse>(
+    const response = await this.request<any>(
       'POST',
       `/api/reset-credits/${subscriptionId}`,
       apiKey,
@@ -460,21 +475,36 @@ export class APIClient {
     // 🔍 详细调试日志 - 查看实际返回的响应对象
     console.log('[DEBUG] resetCredits 收到响应:', {
       response,
-      success: response.success,
-      message: response.message,
-      typeof_success: typeof response.success,
-      typeof_message: typeof response.message,
+      responseData: response.data,
+      ok: response.ok,
+      code: response.code,
+      msg: response.msg,
       keys: Object.keys(response),
       json: JSON.stringify(response),
     });
 
-    if (response.success) {
+    // 88code API 返回的数据结构是 { code, msg, ok, data: { ... } }
+    // 成功的标志是 ok === true 或 code === 0，而不是依赖 data.success
+    const apiSuccess = response.ok === true || response.code === 0;
+
+    if (apiSuccess) {
+      const result: ResetResponse = {
+        success: true,
+        message: response.msg || '重置成功',
+        data: response.data,
+      };
       await Logger.success('API_CALL', `积分重置成功: ${subscriptionId}`);
-    } else {
-      await Logger.warning('API_CALL', `积分重置失败: ${response.message}`);
+      return result;
     }
 
-    return response;
+    // API 调用失败
+    const result: ResetResponse = {
+      success: false,
+      message: response.msg || '重置失败',
+      error: response.data?.error,
+    };
+    await Logger.warning('API_CALL', `积分重置失败: ${result.message}`);
+    return result;
   }
 
   /**
