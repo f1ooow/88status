@@ -133,27 +133,27 @@ async function handleMessage(
             creditLimit: sub.subscriptionPlan?.creditLimit,
           })));
 
-          // 筛选激活的 MONTHLY 订阅，优先 PLUS，跳过 FREE
+          // 筛选激活的 MONTHLY 订阅
           const monthlySubscriptions = subscriptions.filter(
             (sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive,
           );
 
+          // 优先级：非FREE付费套餐 > FREE套餐
           const targetSubscription = monthlySubscriptions.find(
-            (sub) => sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('PLUS'),
-          ) || monthlySubscriptions.find(
             (sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
-          );
+          ) || monthlySubscriptions[0]; // 回退到第一个订阅（可能是FREE）
 
           console.log('[DEBUG] 选中的订阅:', targetSubscription ? {
             id: targetSubscription.id,
             name: targetSubscription.subscriptionPlan?.subscriptionName,
             currentCredits: targetSubscription.currentCredits,
             creditLimit: targetSubscription.subscriptionPlan?.creditLimit,
-          } : 'null (没有非FREE的订阅)');
+            isFree: targetSubscription.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
+          } : 'null (没有激活的MONTHLY订阅)');
 
-          // 如果没有找到非 FREE 的订阅，返回 null
+          // 如果没有找到任何激活的 MONTHLY 订阅，返回 null
           if (!targetSubscription) {
-            console.warn('[DEBUG] 没有找到非 FREE 的激活订阅');
+            console.warn('[DEBUG] 没有找到激活的 MONTHLY 订阅');
             return createSuccessResponse(null);
           }
 
@@ -232,14 +232,12 @@ async function handleMessage(
         if (accounts.length > 0 && accounts[0]) {
           try {
             const subscriptions = await apiClient.getSubscriptions(accounts[0].apiKey);
-            // 优先选择 PLUS 订阅，其次选择其他非 FREE 的 MONTHLY 订阅
+            // 筛选激活的 MONTHLY 订阅
             const monthlySubscriptions = subscriptions.filter(
               (sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive,
             );
-            // 优先级：PLUS > 其他非FREE > FREE
+            // 优先级：非FREE付费套餐 > FREE套餐
             const monthlySubscription = monthlySubscriptions.find(
-              (sub) => sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('PLUS'),
-            ) || monthlySubscriptions.find(
               (sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
             ) || monthlySubscriptions[0];
             if (monthlySubscription) {
