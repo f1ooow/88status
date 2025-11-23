@@ -120,43 +120,51 @@ async function handleMessage(
           return createSuccessResponse(null);
         }
 
-        const usage = await apiClient.getUsage(firstAccount.apiKey);
+        // 获取完整的订阅列表（getSubscriptions 返回完整数据）
+        const subscriptions = await apiClient.getSubscriptions(firstAccount.apiKey);
 
-        // 🔍 调试：查看API返回的原始数据
-        console.log('[DEBUG] getUsage API原始响应:', {
-          currentCredits: usage.currentCredits,
-          creditLimit: usage.creditLimit,
-          subscriptionName: usage.subscriptionName,
-          subscriptionEntityList: usage.subscriptionEntityList,
-          fullUsage: usage,
-        });
+        console.log('[DEBUG] 获取到订阅列表:', subscriptions.map(sub => ({
+          id: sub.id,
+          name: sub.subscriptionPlan?.subscriptionName,
+          planType: sub.subscriptionPlan?.planType,
+          isActive: sub.isActive,
+          currentCredits: sub.currentCredits,
+          creditLimit: sub.subscriptionPlan?.creditLimit,
+        })));
 
-        // 直接使用主订阅数据（subscriptionEntityList 数据不全，缺少 subscriptionPlanName）
-        // 只检查主订阅是否为 FREE，如果不是就直接用
-        console.log('[DEBUG] 主订阅信息:', {
-          subscriptionName: usage.subscriptionName,
-          currentCredits: usage.currentCredits,
-          creditLimit: usage.creditLimit,
-        });
+        // 筛选激活的 MONTHLY 订阅，优先 PLUS，跳过 FREE
+        const monthlySubscriptions = subscriptions.filter(
+          (sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive,
+        );
 
-        // 如果主订阅是 FREE，跳过显示
-        if (usage.subscriptionName?.toUpperCase().includes('FREE')) {
-          console.warn('[DEBUG] 主订阅是 FREE，跳过显示');
+        const targetSubscription = monthlySubscriptions.find(
+          (sub) => sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('PLUS'),
+        ) || monthlySubscriptions.find(
+          (sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
+        );
+
+        console.log('[DEBUG] 选中的订阅:', targetSubscription ? {
+          id: targetSubscription.id,
+          name: targetSubscription.subscriptionPlan?.subscriptionName,
+          currentCredits: targetSubscription.currentCredits,
+          creditLimit: targetSubscription.subscriptionPlan?.creditLimit,
+        } : 'null (没有非FREE的订阅)');
+
+        // 如果没有找到非 FREE 的订阅，返回 null
+        if (!targetSubscription) {
+          console.warn('[DEBUG] 没有找到非 FREE 的激活订阅');
           return createSuccessResponse(null);
         }
 
-        console.log('[DEBUG] 使用主订阅数据 (非FREE)');
-
         // 转换为前端期望的格式（88code使用Credits，不是GB）
         // 注意：currentCredits是剩余积分，不是已使用！
-        const remainingCredits = usage.currentCredits ?? 0;
-        const totalCredits = usage.creditLimit ?? 0;
+        const remainingCredits = targetSubscription.currentCredits ?? 0;
+        const totalCredits = targetSubscription.subscriptionPlan?.creditLimit ?? 0;
         const usedCredits = Math.max(0, totalCredits - remainingCredits);
         const usagePercentage = totalCredits > 0 ? (usedCredits / totalCredits) * 100 : 0;
 
-        // 🔍 调试：查看计算后的数据
-        console.log('[DEBUG] getUsage 计算结果:', {
-          usingSubscription: usage.subscriptionName,
+        console.log('[DEBUG] 计算结果:', {
+          subscription: targetSubscription.subscriptionPlan?.subscriptionName,
           remainingCredits,
           totalCredits,
           usedCredits,
@@ -169,9 +177,6 @@ async function handleMessage(
           remainingGb: remainingCredits,   // 剩余积分
           usagePercentage,                 // 使用百分比
         };
-
-        // 🔍 调试：查看返回给前端的数据
-        console.log('[DEBUG] getUsage 返回给前端的数据:', result);
 
         return createSuccessResponse(result);
       }
