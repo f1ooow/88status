@@ -183,6 +183,23 @@ resetBtn.addEventListener('click', async () => {
     if (resetBtn.disabled)
         return;
     console.log('[Popup] 点击重置按钮');
+    try {
+        // 先获取当前用量，检查是否需要确认
+        const usage = await sendMessage('GET_USAGE');
+        // 如果有余额且余额 > $1，弹出确认对话框
+        if (usage && usage.remainingGb && usage.remainingGb > 1) {
+            const remainingText = formatCredits(usage.remainingGb);
+            const confirm = window.confirm(`You still have ${remainingText} remaining credits.\n\nAre you sure you want to reset now?`);
+            if (!confirm) {
+                console.log('[Popup] 用户取消重置');
+                return;
+            }
+        }
+    }
+    catch (error) {
+        console.error('[Popup] 获取用量失败，继续执行重置:', error);
+        // 获取失败不影响重置，继续执行
+    }
     resetBtn.disabled = true;
     btnContent.classList.add('hidden');
     btnLoading.classList.remove('hidden');
