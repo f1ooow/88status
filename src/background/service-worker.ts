@@ -134,16 +134,19 @@ async function handleMessage(
             resetTimes: sub.resetTimes,
           })));
 
-          // 筛选 MONTHLY 订阅（非FREE付费套餐）
+          // 筛选 MONTHLY 订阅（非FREE付费套餐，且状态为"活跃中"）
           const monthlySubscriptions = subscriptions.filter(
             (sub) => sub.subscriptionPlan?.planType === 'MONTHLY' &&
                      sub.isActive &&
+                     sub.subscriptionStatus === '活跃中' &&
                      !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
           );
 
-          // 筛选 PAY_PER_USE 订阅
+          // 筛选 PAY_PER_USE 订阅（且状态为"活跃中"）
           const paygoSubscriptions = subscriptions.filter(
-            (sub) => sub.subscriptionPlan?.planType === 'PAY_PER_USE' && sub.isActive,
+            (sub) => sub.subscriptionPlan?.planType === 'PAY_PER_USE' &&
+                     sub.isActive &&
+                     sub.subscriptionStatus === '活跃中',
           );
 
           const result: {
