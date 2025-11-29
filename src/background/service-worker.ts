@@ -248,9 +248,11 @@ async function handleMessage(
         if (accounts.length > 0 && accounts[0]) {
           try {
             const subscriptions = await apiClient.getSubscriptions(accounts[0].apiKey);
-            // 筛选激活的 MONTHLY 订阅
+            // 筛选激活的 MONTHLY 订阅（状态为"活跃中"）
             const monthlySubscriptions = subscriptions.filter(
-              (sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive,
+              (sub) => sub.subscriptionPlan?.planType === 'MONTHLY' &&
+                       sub.isActive &&
+                       sub.subscriptionStatus === '活跃中',
             );
             // 优先级：非FREE付费套餐 > FREE套餐
             const monthlySubscription = monthlySubscriptions.find(
