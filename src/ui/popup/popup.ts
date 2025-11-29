@@ -28,7 +28,6 @@ const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
 const btnContent = resetBtn.querySelector('.btn-content') as HTMLElement;
 const btnLoading = resetBtn.querySelector('.btn-loading') as HTMLElement;
 
-const settingsBtn = document.getElementById('settingsBtn') as HTMLButtonElement;
 const nextResetTime = document.getElementById('nextResetTime') as HTMLElement;
 
 // 工具函数
@@ -354,10 +353,6 @@ resetBtn.addEventListener('click', async () => {
   } finally {
     resetBtn.disabled = false;
   }
-});
-
-settingsBtn.addEventListener('click', () => {
-  chrome.runtime.openOptionsPage();
 });
 
 // 初始化

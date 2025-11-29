@@ -21,7 +21,6 @@ const monthlyResetTimes = document.getElementById('monthlyResetTimes');
 const resetBtn = document.getElementById('resetBtn');
 const btnContent = resetBtn.querySelector('.btn-content');
 const btnLoading = resetBtn.querySelector('.btn-loading');
-const settingsBtn = document.getElementById('settingsBtn');
 const nextResetTime = document.getElementById('nextResetTime');
 // 工具函数
 const sendMessage = async (type, payload) => {
@@ -263,9 +262,6 @@ resetBtn.addEventListener('click', async () => {
     finally {
         resetBtn.disabled = false;
     }
-});
-settingsBtn.addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
 });
 // 初始化
 const initialize = async () => {
