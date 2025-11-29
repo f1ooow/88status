@@ -5,14 +5,19 @@
 const statusIndicator = document.getElementById('statusIndicator');
 const statusText = document.getElementById('statusText');
 const usageLoading = document.getElementById('usageLoading');
-const usageContent = document.getElementById('usageContent');
-const usageContent2 = document.getElementById('usageContent2');
 const usageError = document.getElementById('usageError');
 const errorMessage = document.getElementById('errorMessage');
-const gaugePercentage = document.getElementById('gaugePercentage');
-const usedValue = document.getElementById('usedValue');
-const remainingValue = document.getElementById('remainingValue');
-const resetTimesText = document.getElementById('resetTimesText');
+// PAYGO 区域
+const paygoSection = document.getElementById('paygoSection');
+const paygoPlanName = document.getElementById('paygoPlanName');
+const paygoBalance = document.getElementById('paygoBalance');
+// MONTHLY 区域
+const monthlySection = document.getElementById('monthlySection');
+const monthlyPlanName = document.getElementById('monthlyPlanName');
+const monthlyUsed = document.getElementById('monthlyUsed');
+const monthlyRemaining = document.getElementById('monthlyRemaining');
+const monthlyPercentage = document.getElementById('monthlyPercentage');
+const monthlyResetTimes = document.getElementById('monthlyResetTimes');
 const resetBtn = document.getElementById('resetBtn');
 const btnContent = resetBtn.querySelector('.btn-content');
 const btnLoading = resetBtn.querySelector('.btn-loading');
@@ -57,37 +62,46 @@ const formatTimestamp = (timestamp) => {
 // UI 更新
 const showLoading = () => {
     usageLoading.classList.remove('hidden');
-    usageContent.classList.add('hidden');
-    usageContent2.classList.add('hidden');
+    paygoSection.classList.add('hidden');
+    monthlySection.classList.add('hidden');
     usageError.classList.add('hidden');
 };
 const showError = (message) => {
     usageLoading.classList.add('hidden');
-    usageContent.classList.add('hidden');
-    usageContent2.classList.add('hidden');
+    paygoSection.classList.add('hidden');
+    monthlySection.classList.add('hidden');
     usageError.classList.remove('hidden');
     errorMessage.textContent = message;
 };
-const updateUsageDisplay = (usage) => {
-    console.log('[Popup] updateUsageDisplay 被调用，参数:', usage);
+const updateUsageDisplay = (data) => {
+    console.log('[Popup] 更新用量显示:', data);
     usageLoading.classList.add('hidden');
     usageError.classList.add('hidden');
-    usageContent.classList.remove('hidden');
-    usageContent2.classList.remove('hidden');
-    const percentage = Math.min(Math.max(usage.usagePercentage ?? 0, 0), 100);
-    const usedText = formatCredits(usage.usedGb);
-    const remainingText = formatCredits(usage.remainingGb);
-    console.log('[Popup] 格式化后的值:', {
-        percentage: percentage.toFixed(1) + '%',
-        usedText,
-        remainingText,
-        usedGb: usage.usedGb,
-        remainingGb: usage.remainingGb,
-    });
-    gaugePercentage.textContent = Number.isNaN(percentage) ? '--%' : `${percentage.toFixed(1)}%`;
-    usedValue.textContent = usedText;
-    remainingValue.textContent = remainingText;
-    console.log('[Popup] DOM 更新完成');
+    // 显示 PAYGO 区域
+    if (data.paygo) {
+        paygoSection.classList.remove('hidden');
+        paygoPlanName.textContent = data.paygo.subscriptionName || 'PAYGO';
+        paygoBalance.textContent = formatCredits(data.paygo.remainingGb);
+        console.log('[Popup] PAYGO 显示:', data.paygo);
+    }
+    else {
+        paygoSection.classList.add('hidden');
+    }
+    // 显示 MONTHLY 区域
+    if (data.monthly) {
+        monthlySection.classList.remove('hidden');
+        monthlyPlanName.textContent = data.monthly.subscriptionName || 'PLUS';
+        monthlyUsed.textContent = formatCredits(data.monthly.usedGb);
+        monthlyRemaining.textContent = formatCredits(data.monthly.remainingGb);
+        const percentage = Math.min(Math.max(data.monthly.usagePercentage ?? 0, 0), 100);
+        monthlyPercentage.textContent = `${percentage.toFixed(1)}%`;
+        const resetTimes = data.monthly.resetTimes ?? 0;
+        monthlyResetTimes.textContent = `${resetTimes}/2`;
+        console.log('[Popup] MONTHLY 显示:', data.monthly);
+    }
+    else {
+        monthlySection.classList.add('hidden');
+    }
 };
 const updateStatus = (connected) => {
     if (connected) {
@@ -112,10 +126,6 @@ const updateNextResetTime = (timestamp, resetTimes, resetType) => {
     const timeStr = formatTimestamp(timestamp);
     const typeLabel = resetType === 'first' ? '1st' : resetType === 'second' ? '2nd' : '';
     nextResetTime.textContent = typeLabel ? `${typeLabel} ${timeStr}` : timeStr;
-};
-const updateResetTimes = (times) => {
-    const actualTimes = times ?? 2;
-    resetTimesText.textContent = `${actualTimes}/2`;
 };
 const updateResetButton = (isOnCooldown, nextAvailableTime, resetTimes) => {
     // 优先检查：如果今日重置次数已用完，显示 "No resets left"
@@ -152,40 +162,31 @@ const loadUsage = async () => {
     showLoading();
     try {
         console.log('[Popup] 开始获取用量数据...');
-        const usage = await sendMessage('GET_USAGE');
-        console.log('[Popup] 收到用量数据:', usage);
+        const data = await sendMessage('GET_USAGE');
+        console.log('[Popup] 收到用量数据:', data);
         // 情况1：未配置 API Key（返回 null）
-        if (!usage) {
+        if (!data) {
             console.warn('[Popup] 用量数据为空，未配置 API Key');
             showError('Please add API key in Settings');
             return;
         }
-        // 情况2：API 调用失败（余额不足、网络错误等），但仍显示数据
-        if (usage.apiError) {
-            console.warn('[Popup] API 调用失败，但仍显示界面:', usage.errorMessage);
-            // 显示 0 值，让用户知道当前状态
-            updateUsageDisplay({
-                totalQuotaGb: 0,
-                usedGb: 0,
-                remainingGb: 0,
-                usagePercentage: 100, // 显示 100% 表示已用完
-            });
-            // 可以选择在界面上显示一个温馨提示，但不阻止插件打开
-            // showError(`Temporary error: ${usage.errorMessage}`);
+        // 情况2：API 调用失败
+        if (data.apiError) {
+            console.warn('[Popup] API 调用失败:', data.errorMessage);
+            showError(data.errorMessage || 'Failed to load');
             return;
         }
-        // 情况3：正常获取数据
-        updateUsageDisplay(usage);
+        // 情况3：正常显示数据
+        if (data.monthly || data.paygo) {
+            updateUsageDisplay(data);
+        }
+        else {
+            console.warn('[Popup] 没有可用的订阅数据');
+            showError('No active subscriptions');
+        }
     }
     catch (error) {
         console.error('[Popup] 获取用量失败:', error);
-        // 即使出错，也显示基本界面，不要完全阻止用户使用
-        updateUsageDisplay({
-            totalQuotaGb: 0,
-            usedGb: 0,
-            remainingGb: 0,
-            usagePercentage: 0,
-        });
         showError(error instanceof Error ? error.message : 'Load failed');
     }
 };
@@ -194,7 +195,6 @@ const loadStatus = async () => {
         const status = await sendMessage('GET_STATUS');
         updateStatus(status.connected);
         updateNextResetTime(status.nextScheduledReset, status.resetTimes, status.nextResetType);
-        updateResetTimes(status.resetTimes);
         updateResetButton(status.isOnCooldown, status.nextAvailableTime, status.resetTimes);
     }
     catch (error) {
@@ -208,10 +208,10 @@ resetBtn.addEventListener('click', async () => {
     console.log('[Popup] 点击重置按钮');
     try {
         // 先获取当前用量，检查是否需要确认
-        const usage = await sendMessage('GET_USAGE');
-        // 如果有余额且余额 > $1，弹出确认对话框
-        if (usage && usage.remainingGb && usage.remainingGb > 1) {
-            const remainingText = formatCredits(usage.remainingGb);
+        const data = await sendMessage('GET_USAGE');
+        // 如果 MONTHLY 有余额且余额 > $1，弹出确认对话框
+        if (data?.monthly?.remainingGb && data.monthly.remainingGb > 1) {
+            const remainingText = formatCredits(data.monthly.remainingGb);
             const confirm = window.confirm(`You still have ${remainingText} remaining credits.\n\nAre you sure you want to reset now?`);
             if (!confirm) {
                 console.log('[Popup] 用户取消重置');

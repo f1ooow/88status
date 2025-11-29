@@ -30,24 +30,44 @@
         <p id="errorMessage">Failed to load</p>
       </div>
 
-      <!-- 用量显示 -->
-      <div class="usage hidden" id="usageContent">
-        <div class="amount">
-          <div class="label">Used</div>
-          <div class="value" id="usedValue">$0.00</div>
+      <!-- PAYGO 订阅卡片 -->
+      <div class="subscription-card paygo hidden" id="paygoSection">
+        <div class="card-header">
+          <span class="plan-badge">PAYGO</span>
+          <span class="plan-name" id="paygoPlanName">Pay As You Go</span>
         </div>
-        <div class="divider"></div>
-        <div class="amount">
-          <div class="label">Left</div>
-          <div class="value" id="remainingValue">$0.00</div>
+        <div class="card-body">
+          <div class="single-value">
+            <div class="label">Balance</div>
+            <div class="value" id="paygoBalance">--</div>
+          </div>
         </div>
       </div>
 
-      <!-- 百分比和刷新次数 -->
-      <div class="stats-row hidden" id="usageContent2">
-        <span id="gaugePercentage">0%</span>
-        <span class="sep">·</span>
-        <span id="resetTimesText">--/2</span>
+      <!-- MONTHLY 订阅卡片 -->
+      <div class="subscription-card monthly hidden" id="monthlySection">
+        <div class="card-header">
+          <span class="plan-badge">MONTHLY</span>
+          <span class="plan-name" id="monthlyPlanName">PLUS</span>
+        </div>
+        <div class="card-body">
+          <div class="usage-display">
+            <div class="amount">
+              <div class="label">Used</div>
+              <div class="value" id="monthlyUsed">--</div>
+            </div>
+            <div class="divider"></div>
+            <div class="amount">
+              <div class="label">Left</div>
+              <div class="value" id="monthlyRemaining">--</div>
+            </div>
+          </div>
+          <div class="stats-row">
+            <span id="monthlyPercentage">0.0%</span>
+            <span class="sep">·</span>
+            <span id="monthlyResetTimes">2/2</span>
+          </div>
+        </div>
       </div>
     </div>
 

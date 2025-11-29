@@ -97,7 +97,7 @@ async function handleMessage(message, sender) {
                     return createSuccessResponse(null);
                 }
                 try {
-                    // 获取完整的订阅列表（getSubscriptions 返回完整数据）
+                    // 获取完整的订阅列表
                     const subscriptions = await apiClient.getSubscriptions(firstAccount.apiKey);
                     console.log('[DEBUG] 获取到订阅列表:', subscriptions.map(sub => ({
                         id: sub.id,
@@ -106,58 +106,56 @@ async function handleMessage(message, sender) {
                         isActive: sub.isActive,
                         currentCredits: sub.currentCredits,
                         creditLimit: sub.subscriptionPlan?.creditLimit,
+                        resetTimes: sub.resetTimes,
                     })));
-                    // 筛选激活的 MONTHLY 订阅
-                    const monthlySubscriptions = subscriptions.filter((sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive);
-                    // 优先级：非FREE付费套餐 > FREE套餐
-                    const targetSubscription = monthlySubscriptions.find((sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE')) || monthlySubscriptions[0]; // 回退到第一个订阅（可能是FREE）
-                    console.log('[DEBUG] 选中的订阅:', targetSubscription ? {
-                        id: targetSubscription.id,
-                        name: targetSubscription.subscriptionPlan?.subscriptionName,
-                        currentCredits: targetSubscription.currentCredits,
-                        creditLimit: targetSubscription.subscriptionPlan?.creditLimit,
-                        isFree: targetSubscription.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
-                    } : 'null (没有激活的MONTHLY订阅)');
-                    // 如果没有找到任何激活的 MONTHLY 订阅，返回 null
-                    if (!targetSubscription) {
-                        console.warn('[DEBUG] 没有找到激活的 MONTHLY 订阅');
+                    // 筛选 MONTHLY 订阅（非FREE付费套餐）
+                    const monthlySubscriptions = subscriptions.filter((sub) => sub.subscriptionPlan?.planType === 'MONTHLY' &&
+                        sub.isActive &&
+                        !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'));
+                    // 筛选 PAY_PER_USE 订阅
+                    const paygoSubscriptions = subscriptions.filter((sub) => sub.subscriptionPlan?.planType === 'PAY_PER_USE' && sub.isActive);
+                    const result = {};
+                    // 处理 MONTHLY 订阅
+                    const monthlyData = monthlySubscriptions[0];
+                    if (monthlyData) {
+                        const remainingCredits = monthlyData.currentCredits ?? 0;
+                        const totalCredits = monthlyData.subscriptionPlan?.creditLimit ?? 0;
+                        const usedCredits = Math.max(0, totalCredits - remainingCredits);
+                        const usagePercentage = totalCredits > 0 ? (usedCredits / totalCredits) * 100 : 0;
+                        result.monthly = {
+                            subscriptionName: monthlyData.subscriptionPlan?.subscriptionName || 'PLUS',
+                            totalQuotaGb: totalCredits,
+                            usedGb: usedCredits,
+                            remainingGb: remainingCredits,
+                            usagePercentage,
+                            resetTimes: monthlyData.resetTimes ?? 0,
+                        };
+                        console.log('[DEBUG] MONTHLY 数据:', result.monthly);
+                    }
+                    // 处理 PAY_PER_USE 订阅
+                    const paygoData = paygoSubscriptions[0];
+                    if (paygoData) {
+                        result.paygo = {
+                            subscriptionName: paygoData.subscriptionPlan?.subscriptionName || 'PAYGO',
+                            remainingGb: paygoData.currentCredits ?? 0,
+                        };
+                        console.log('[DEBUG] PAYGO 数据:', result.paygo);
+                    }
+                    // 如果既没有 MONTHLY 也没有 PAYGO，返回 null
+                    if (!result.monthly && !result.paygo) {
+                        console.warn('[DEBUG] 没有找到可用的订阅');
                         return createSuccessResponse(null);
                     }
-                    // 转换为前端期望的格式（88code使用Credits，不是GB）
-                    // 注意：currentCredits是剩余积分，不是已使用！
-                    const remainingCredits = targetSubscription.currentCredits ?? 0;
-                    const totalCredits = targetSubscription.subscriptionPlan?.creditLimit ?? 0;
-                    const usedCredits = Math.max(0, totalCredits - remainingCredits);
-                    const usagePercentage = totalCredits > 0 ? (usedCredits / totalCredits) * 100 : 0;
-                    console.log('[DEBUG] 计算结果:', {
-                        subscription: targetSubscription.subscriptionPlan?.subscriptionName,
-                        remainingCredits,
-                        totalCredits,
-                        usedCredits,
-                        usagePercentage: usagePercentage.toFixed(2) + '%',
-                    });
-                    const result = {
-                        totalQuotaGb: totalCredits, // 总配额
-                        usedGb: usedCredits, // 已使用 = 总额 - 剩余
-                        remainingGb: remainingCredits, // 剩余积分
-                        usagePercentage, // 使用百分比
-                    };
                     return createSuccessResponse(result);
                 }
                 catch (error) {
-                    // 🔧 容错处理：即使 API 调用失败，也返回成功响应但数据为 null
-                    // 这样前端可以区分"未配置 API Key"和"临时获取失败"
-                    console.error('[GET_USAGE] API 调用失败，但不影响插件打开:', error);
-                    await Logger.warning('GET_USAGE', 'API 调用失败，返回空数据', undefined, {
+                    console.error('[GET_USAGE] API 调用失败:', error);
+                    await Logger.warning('GET_USAGE', 'API 调用失败', undefined, {
                         error: error instanceof Error ? error.message : String(error),
                     });
-                    // 返回一个特殊的标记，表示 API 配置存在但获取失败
+                    // 返回 API 错误标记
                     return createSuccessResponse({
-                        totalQuotaGb: 0,
-                        usedGb: 0,
-                        remainingGb: 0,
-                        usagePercentage: 0,
-                        apiError: true, // 标记：API 调用失败
+                        apiError: true,
                         errorMessage: error instanceof Error ? error.message : 'Unknown error',
                     });
                 }
