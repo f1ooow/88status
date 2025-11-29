@@ -171,9 +171,9 @@ export class ResetService {
           return false;
         }
 
-        // 检查是否为 MONTHLY 且激活
-        if (isMonthlySubscription(sub) && isActiveSubscription(sub)) {
-          Logger.info('SUBSCRIPTION_ELIGIBLE', `订阅符合重置条件 (Plan: ${sub.subscriptionPlan.planType}, Active: ${sub.isActive}, ResetTimes: ${sub.resetTimes})`, account.id).catch(() => {});
+        // 检查是否为 MONTHLY 且激活，且状态为"活跃中"（排除"未开始"的订阅）
+        if (isMonthlySubscription(sub) && isActiveSubscription(sub) && sub.subscriptionStatus === '活跃中') {
+          Logger.info('SUBSCRIPTION_ELIGIBLE', `订阅符合重置条件 (Plan: ${sub.subscriptionPlan.planType}, Status: ${sub.subscriptionStatus}, Active: ${sub.isActive}, ResetTimes: ${sub.resetTimes})`, account.id).catch(() => {});
           return true;
         }
 
