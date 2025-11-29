@@ -27,6 +27,13 @@ export declare class Scheduler {
      */
     handleAlarm(alarm: chrome.alarms.Alarm): Promise<void>;
     /**
+     * 检查当前时间是否在预期执行时间窗口内（±N分钟）
+     * @param scheduledTime 预期执行时间（格式：HH:MM）
+     * @param windowMinutes 时间窗口（分钟）
+     * @returns 是否在时间窗口内
+     */
+    private isWithinTimeWindow;
+    /**
      * 执行定时重置
      */
     private executeScheduledReset;

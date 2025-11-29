@@ -125,6 +125,29 @@ export class Scheduler {
   }
 
   /**
+   * 检查当前时间是否在预期执行时间窗口内（±N分钟）
+   * @param scheduledTime 预期执行时间（格式：HH:MM）
+   * @param windowMinutes 时间窗口（分钟）
+   * @returns 是否在时间窗口内
+   */
+  private isWithinTimeWindow(scheduledTime: string, windowMinutes: number): boolean {
+    const now = new Date();
+    const parts = scheduledTime.split(':');
+    const hours = Number(parts[0]);
+    const minutes = Number(parts[1]);
+
+    // 构造今天的预期执行时间
+    const target = new Date(now);
+    target.setHours(hours, minutes, 0, 0);
+
+    // 计算时间差（毫秒）
+    const diffMs = Math.abs(now.getTime() - target.getTime());
+    const diffMinutes = diffMs / (60 * 1000);
+
+    return diffMinutes <= windowMinutes;
+  }
+
+  /**
    * 执行定时重置
    */
   private async executeScheduledReset(isFirstReset: boolean): Promise<void> {
@@ -133,6 +156,28 @@ export class Scheduler {
 
     // 获取配置（用于时区）
     const config = await StorageService.getScheduleConfig();
+
+    // 检查时间窗口（防止过期补偿执行）
+    const scheduledTime = isFirstReset ? config.firstResetTime : config.secondResetTime;
+    const TIME_WINDOW_MINUTES = 3; // ±3分钟窗口
+
+    if (!this.isWithinTimeWindow(scheduledTime, TIME_WINDOW_MINUTES)) {
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+      await Logger.warning(
+        'SCHEDULED_RESET',
+        `${label}重置超出时间窗口，跳过执行`,
+        undefined,
+        {
+          scheduledTime,
+          currentTime,
+          windowMinutes: TIME_WINDOW_MINUTES,
+          reason: '防止过期任务补偿执行',
+        }
+      );
+      return;
+    }
 
     // 检查今天是否已执行（使用配置的时区）
     const state = await StorageService.getExecutionState();

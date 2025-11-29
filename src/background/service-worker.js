@@ -96,50 +96,71 @@ async function handleMessage(message, sender) {
                 if (!firstAccount) {
                     return createSuccessResponse(null);
                 }
-                // 获取完整的订阅列表（getSubscriptions 返回完整数据）
-                const subscriptions = await apiClient.getSubscriptions(firstAccount.apiKey);
-                console.log('[DEBUG] 获取到订阅列表:', subscriptions.map(sub => ({
-                    id: sub.id,
-                    name: sub.subscriptionPlan?.subscriptionName,
-                    planType: sub.subscriptionPlan?.planType,
-                    isActive: sub.isActive,
-                    currentCredits: sub.currentCredits,
-                    creditLimit: sub.subscriptionPlan?.creditLimit,
-                })));
-                // 筛选激活的 MONTHLY 订阅，优先 PLUS，跳过 FREE
-                const monthlySubscriptions = subscriptions.filter((sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive);
-                const targetSubscription = monthlySubscriptions.find((sub) => sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('PLUS')) || monthlySubscriptions.find((sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'));
-                console.log('[DEBUG] 选中的订阅:', targetSubscription ? {
-                    id: targetSubscription.id,
-                    name: targetSubscription.subscriptionPlan?.subscriptionName,
-                    currentCredits: targetSubscription.currentCredits,
-                    creditLimit: targetSubscription.subscriptionPlan?.creditLimit,
-                } : 'null (没有非FREE的订阅)');
-                // 如果没有找到非 FREE 的订阅，返回 null
-                if (!targetSubscription) {
-                    console.warn('[DEBUG] 没有找到非 FREE 的激活订阅');
-                    return createSuccessResponse(null);
+                try {
+                    // 获取完整的订阅列表（getSubscriptions 返回完整数据）
+                    const subscriptions = await apiClient.getSubscriptions(firstAccount.apiKey);
+                    console.log('[DEBUG] 获取到订阅列表:', subscriptions.map(sub => ({
+                        id: sub.id,
+                        name: sub.subscriptionPlan?.subscriptionName,
+                        planType: sub.subscriptionPlan?.planType,
+                        isActive: sub.isActive,
+                        currentCredits: sub.currentCredits,
+                        creditLimit: sub.subscriptionPlan?.creditLimit,
+                    })));
+                    // 筛选激活的 MONTHLY 订阅
+                    const monthlySubscriptions = subscriptions.filter((sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive);
+                    // 优先级：非FREE付费套餐 > FREE套餐
+                    const targetSubscription = monthlySubscriptions.find((sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE')) || monthlySubscriptions[0]; // 回退到第一个订阅（可能是FREE）
+                    console.log('[DEBUG] 选中的订阅:', targetSubscription ? {
+                        id: targetSubscription.id,
+                        name: targetSubscription.subscriptionPlan?.subscriptionName,
+                        currentCredits: targetSubscription.currentCredits,
+                        creditLimit: targetSubscription.subscriptionPlan?.creditLimit,
+                        isFree: targetSubscription.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE'),
+                    } : 'null (没有激活的MONTHLY订阅)');
+                    // 如果没有找到任何激活的 MONTHLY 订阅，返回 null
+                    if (!targetSubscription) {
+                        console.warn('[DEBUG] 没有找到激活的 MONTHLY 订阅');
+                        return createSuccessResponse(null);
+                    }
+                    // 转换为前端期望的格式（88code使用Credits，不是GB）
+                    // 注意：currentCredits是剩余积分，不是已使用！
+                    const remainingCredits = targetSubscription.currentCredits ?? 0;
+                    const totalCredits = targetSubscription.subscriptionPlan?.creditLimit ?? 0;
+                    const usedCredits = Math.max(0, totalCredits - remainingCredits);
+                    const usagePercentage = totalCredits > 0 ? (usedCredits / totalCredits) * 100 : 0;
+                    console.log('[DEBUG] 计算结果:', {
+                        subscription: targetSubscription.subscriptionPlan?.subscriptionName,
+                        remainingCredits,
+                        totalCredits,
+                        usedCredits,
+                        usagePercentage: usagePercentage.toFixed(2) + '%',
+                    });
+                    const result = {
+                        totalQuotaGb: totalCredits, // 总配额
+                        usedGb: usedCredits, // 已使用 = 总额 - 剩余
+                        remainingGb: remainingCredits, // 剩余积分
+                        usagePercentage, // 使用百分比
+                    };
+                    return createSuccessResponse(result);
                 }
-                // 转换为前端期望的格式（88code使用Credits，不是GB）
-                // 注意：currentCredits是剩余积分，不是已使用！
-                const remainingCredits = targetSubscription.currentCredits ?? 0;
-                const totalCredits = targetSubscription.subscriptionPlan?.creditLimit ?? 0;
-                const usedCredits = Math.max(0, totalCredits - remainingCredits);
-                const usagePercentage = totalCredits > 0 ? (usedCredits / totalCredits) * 100 : 0;
-                console.log('[DEBUG] 计算结果:', {
-                    subscription: targetSubscription.subscriptionPlan?.subscriptionName,
-                    remainingCredits,
-                    totalCredits,
-                    usedCredits,
-                    usagePercentage: usagePercentage.toFixed(2) + '%',
-                });
-                const result = {
-                    totalQuotaGb: totalCredits, // 总配额
-                    usedGb: usedCredits, // 已使用 = 总额 - 剩余
-                    remainingGb: remainingCredits, // 剩余积分
-                    usagePercentage, // 使用百分比
-                };
-                return createSuccessResponse(result);
+                catch (error) {
+                    // 🔧 容错处理：即使 API 调用失败，也返回成功响应但数据为 null
+                    // 这样前端可以区分"未配置 API Key"和"临时获取失败"
+                    console.error('[GET_USAGE] API 调用失败，但不影响插件打开:', error);
+                    await Logger.warning('GET_USAGE', 'API 调用失败，返回空数据', undefined, {
+                        error: error instanceof Error ? error.message : String(error),
+                    });
+                    // 返回一个特殊的标记，表示 API 配置存在但获取失败
+                    return createSuccessResponse({
+                        totalQuotaGb: 0,
+                        usedGb: 0,
+                        remainingGb: 0,
+                        usagePercentage: 0,
+                        apiError: true, // 标记：API 调用失败
+                        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+                    });
+                }
             }
             case 'GET_ACCOUNTS': {
                 const accounts = await StorageService.getAccounts();
@@ -168,10 +189,10 @@ async function handleMessage(message, sender) {
                 if (accounts.length > 0 && accounts[0]) {
                     try {
                         const subscriptions = await apiClient.getSubscriptions(accounts[0].apiKey);
-                        // 优先选择 PLUS 订阅，其次选择其他非 FREE 的 MONTHLY 订阅
+                        // 筛选激活的 MONTHLY 订阅
                         const monthlySubscriptions = subscriptions.filter((sub) => sub.subscriptionPlan?.planType === 'MONTHLY' && sub.isActive);
-                        // 优先级：PLUS > 其他非FREE > FREE
-                        const monthlySubscription = monthlySubscriptions.find((sub) => sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('PLUS')) || monthlySubscriptions.find((sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE')) || monthlySubscriptions[0];
+                        // 优先级：非FREE付费套餐 > FREE套餐
+                        const monthlySubscription = monthlySubscriptions.find((sub) => !sub.subscriptionPlan?.subscriptionName?.toUpperCase().includes('FREE')) || monthlySubscriptions[0];
                         if (monthlySubscription) {
                             resetTimes = monthlySubscription.resetTimes ?? 0;
                             // 检查冷却时间

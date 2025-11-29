@@ -154,15 +154,38 @@ const loadUsage = async () => {
         console.log('[Popup] 开始获取用量数据...');
         const usage = await sendMessage('GET_USAGE');
         console.log('[Popup] 收到用量数据:', usage);
+        // 情况1：未配置 API Key（返回 null）
         if (!usage) {
-            console.warn('[Popup] 用量数据为空，可能未配置 API Key');
+            console.warn('[Popup] 用量数据为空，未配置 API Key');
             showError('Please add API key in Settings');
             return;
         }
+        // 情况2：API 调用失败（余额不足、网络错误等），但仍显示数据
+        if (usage.apiError) {
+            console.warn('[Popup] API 调用失败，但仍显示界面:', usage.errorMessage);
+            // 显示 0 值，让用户知道当前状态
+            updateUsageDisplay({
+                totalQuotaGb: 0,
+                usedGb: 0,
+                remainingGb: 0,
+                usagePercentage: 100, // 显示 100% 表示已用完
+            });
+            // 可以选择在界面上显示一个温馨提示，但不阻止插件打开
+            // showError(`Temporary error: ${usage.errorMessage}`);
+            return;
+        }
+        // 情况3：正常获取数据
         updateUsageDisplay(usage);
     }
     catch (error) {
         console.error('[Popup] 获取用量失败:', error);
+        // 即使出错，也显示基本界面，不要完全阻止用户使用
+        updateUsageDisplay({
+            totalQuotaGb: 0,
+            usedGb: 0,
+            remainingGb: 0,
+            usagePercentage: 0,
+        });
         showError(error instanceof Error ? error.message : 'Load failed');
     }
 };

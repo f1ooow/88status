@@ -74,8 +74,9 @@ export class ResetService {
                     Logger.info('SUBSCRIPTION_SKIPPED', skipMsg, account.id).catch(() => { });
                     return false;
                 }
-                // 手动重置时检查冷却时间（5小时 = 18000000毫秒）
-                if (manual && sub.lastCreditReset) {
+                // 检查冷却时间（5小时 = 18000000毫秒）
+                // 手动和定时任务都需要检查，防止短时间内重复刷新
+                if (sub.lastCreditReset) {
                     const lastResetTime = new Date(sub.lastCreditReset).getTime();
                     const now = Date.now();
                     const timeSinceLastReset = now - lastResetTime;
